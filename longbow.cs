@@ -15,6 +15,7 @@ using System.Collections.Generic;
 public class LongbowCore {
 	//version of the software
 	public static string version = "0.1";
+	public static List<string> channel_lines = new List<string>();
 	
 	//Text displayed during startup
 	public static string init_text = "Longbow v"+LongbowCore.version;
@@ -64,7 +65,6 @@ public class LongbowCore {
 		List<string> games_ids = new List<string>();
 		
 		string channel_line = string.Empty;
-		List<string> channel_lines = new List<string>();
 		 
 		//end variables
 		
@@ -168,20 +168,57 @@ public class LongbowCore {
 				channel_line = "(OOC) "+channel_line;
 			}
 			Console.WriteLine(channel_line);
+			channel_lines.Add(channel_line);
 		}
-		Console.WriteLine("");
+		Console.WriteLine("\n");
 		
 		//MAIN LOOP BEGIN
 		bool loop = true;
 		LongbowWorkerThread Worker = new LongbowWorkerThread();
-		Thread w = new Thread(Worker.UpdateChannel);
-		w.Start();
+		//Thread w = new Thread(Worker.UpdateChannel);
+		//w.Start(channel_lines);
+		ThreadPool.QueueUserWorkItem(o => Worker.UpdateChannel(ref LongbowCore.channel_lines));
 		
-		string inText = string.Empty;
+		
+		ConsoleKeyInfo inText;
+		string TextBuffer = "";
+		int uCursorTop;
+		int uCursorLeft;
+		int ExcerptSize;
+		
+		Console.Write("> "+TextBuffer+" ");
+		Console.SetCursorPosition(2, Console.CursorTop);
 		
 		while (loop) {
-			inText = Console.ReadLine();
-			Console.WriteLine(inText);
+			
+			uCursorLeft = Console.CursorLeft;
+			uCursorTop = Console.CursorTop;
+			
+			inText = Console.ReadKey();
+			
+			
+			if (inText.Key == ConsoleKey.Backspace) {
+				if (uCursorLeft > 2){
+					Console.SetCursorPosition(uCursorLeft-1, uCursorTop);
+					TextBuffer = TextBuffer.Substring(0,TextBuffer.Length-1);
+					Console.Write(" ");
+				}
+			
+			} else if (inText.Key == ConsoleKey.Enter) {
+			
+				Console.WriteLine(TextBuffer);
+				channel_lines.Add(TextBuffer);
+				TextBuffer = "";
+			
+			} else {
+			
+			Console.Write(inText.KeyChar);
+				TextBuffer = TextBuffer + inText.KeyChar;
+			}
+			
+			Console.SetCursorPosition(0, uCursorTop);
+			Console.Write("> "+TextBuffer+" ");
+			Console.SetCursorPosition(TextBuffer.Length+2, uCursorTop);
 		}
 		
 		
@@ -194,16 +231,16 @@ public class LongbowWorkerThread {
 	public int uCursorTop;
 	public int nCursorLeft;
 	public int nCursorTop;
-	public void UpdateChannel(){
+	private LongbowToolkit Tools = new LongbowToolkit();
+	
+	
+	public void UpdateChannel(ref List<string> OurChat){
 		uCursorLeft = Console.CursorLeft;
 		uCursorTop = Console.CursorTop;
 		while (true){
 			Thread.Sleep(5000); 
-			nCursorLeft = Console.CursorLeft;
-			nCursorTop = Console.CursorTop;
-			Console.SetCursorPosition(uCursorLeft, uCursorTop-1);
-			Console.WriteLine("Dummy text\r\n");
-			Console.SetCursorPosition(nCursorLeft, uCursorTop);
+			OurChat.Add("Dummy Teckst");
+			Tools.RedrawChat(OurChat);
 		}
 	}
 }
@@ -213,6 +250,24 @@ public class LongbowToolkit {
 	/// Un-quotes a quoted string
 	/// </summary>
 	/// <param name="InputTxt">Text string need to be escape with slashes</param>
+	
+	public void RedrawChat(List<string> OurChat){
+		//re-render the whole window
+			
+		int ExcerptSize;
+	
+		if (OurChat.Count > 30){
+			ExcerptSize = 0;
+		} else {
+			ExcerptSize = OurChat.Count - 30;
+		}
+	
+		for (int i = ExcerptSize; i < OurChat.Count; i++){
+			Console.WriteLine(OurChat[i]);
+		}
+			
+	}
+	
 	public string StripSlashes(string InputTxt)
 	{
 	    // List of characters handled:
