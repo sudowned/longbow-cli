@@ -2,26 +2,31 @@
 //core of the Longbow application for Phyre
 
 using System;
+using System.IO;
 using System.Diagnostics;
 using System.Threading;
 using System.Net;
+using System.Web;
 using System.Linq;
 using System.Xml;
 using System.Xml.Linq;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 //using Mono.Terminal;
 
 public class LongbowCore {
+	
+	public static string BuildNumber = Regex.Replace(System.IO.File.ReadAllText("longbow.vr"), "[^.0-9]", "");
+	
 	//version of the software
-	public static string version = "0.1";
-	public static List<string> channel_lines = new List<string>();
+	public static string version = "0.1 (build "+BuildNumber+")";
 	
 	//Text displayed during startup
 	public static string init_text = "Longbow v"+LongbowCore.version;
 	
 	//API URL base for sessions
-	public static string api_url = "http://dev.phyre.im/api/longbow";
+	public static Uri api_url = new Uri("http://dev.phyre.im/api/longbow");
 	
 	public static void Main(string[] args){
 		
@@ -29,12 +34,16 @@ public class LongbowCore {
 		bool askusername = false;
 		
 		LongbowToolkit Tools = new LongbowToolkit();
+		LongbowInstanceData Data = new LongbowInstanceData();
+		LongbowSessionData Session = new LongbowSessionData();
+		LongbowServer Server = new LongbowServer();
 		
 		Console.WriteLine(LongbowCore.init_text);
 		WebClient fetch = new WebClient();
 		
+		
 		if (args.Length > 0){
-			username = args[0];
+			Session.Login = args[0];
 			if (username.Length < 3){
 			Console.WriteLine("Invalid username. Please try again.");
 			askusername = true;
@@ -45,18 +54,18 @@ public class LongbowCore {
 		
 		if (askusername){
 			Console.WriteLine("Username:");
-			username = Console.ReadLine();
+			Session.Login = Console.ReadLine();
 		}
 		
-		Console.WriteLine("Attempting to log in as "+username+"...\nPassword: ");
+		Console.WriteLine("Attempting to log in as "+Session.Login+"...\nPassword: ");
 		string password = Console.ReadLine();
 		
 		
-		string parameters = "password="+password+"&username="+username;
+		string parameters = "password="+password+"&username="+Session.Login;
 		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
 		
 		//define our variables
-		string		data,session = string.Empty;
+		string		data = string.Empty;
 		string		games_count = string.Empty;
 		string		lberror	= string.Empty;
 		string[]	game_entry = new string[2];
@@ -87,7 +96,7 @@ public class LongbowCore {
 		xnList = xml.SelectNodes("/root/session");
 		
 		foreach (XmlNode xn in xnList){
-			session = xn["luxSession"].InnerText;
+			Session.SessionID = xn["luxSession"].InnerText;
 		}
 		
 		xnList = xml.SelectNodes("/root");
@@ -116,39 +125,45 @@ public class LongbowCore {
 		//foreach(string value in session){	Console.WriteLine(value); }
 		
 		
-		Console.WriteLine("\n\n\n\n\n\n\n\n\nLogged in as: {1} Games total: {0}", games_count, username);
+		Console.WriteLine("\n\n\n\n\n\n\n\n\nLogged in as: {1} Games total: {0}", games_count, Session.Login);
 		Console.WriteLine("|=====================================|\n");
 		for (int i = 0; i < games_ids.Count(); i++){
-			Console.WriteLine("> "+i+"	(ID: "+games_ids[i]+")	"+Tools.StripSlashes(games_names[i]));
+			Console.WriteLine("> "+(i+1)+"	(ID: "+games_ids[i]+")  	"+Tools.StripSlashes(games_names[i]));
 		}
 		
 		Console.WriteLine("\n\nPlease enter the number (not ID) of the game you wish to join.");
 		
 		string gameselection = "";
-		gameselection = Console.ReadLine();
+		bool ChoseGame = false;
 		
-		try {
-			gameselection_int = Convert.ToInt32(gameselection);
-		} catch (FormatException e) {
-			Console.WriteLine("That is not a number.");
-		} finally {
-			if (gameselection_int > games_ids.Count()){
-				Console.WriteLine("Not a valid game! Exiting.");
-				Environment.Exit(0);
+		while (!ChoseGame){
+			gameselection = Console.ReadLine();
+			try {
+				gameselection_int = Convert.ToInt32(gameselection) - 1; //fencepost!
+			} catch (FormatException e) {
+				Console.WriteLine("That is not a number.");
+			} finally {
+				if (gameselection_int > games_ids.Count() || gameselection_int == -1){
+					Console.WriteLine("Not a valid game! Try again.");
+				} else {
+					ChoseGame = true;
+				}
 			}
 		}
+		
+		Data.ChannelID = Convert.ToInt32(games_ids[gameselection_int]);
+		Data.ChannelName = games_names[gameselection_int];
 		
 		Console.WriteLine("Joining \"{0}\".\n|=============|", games_names[gameselection_int]);
 		
 		
 		//being lazy and plunking down the connection code here again
 		
-		parameters = "password="+password+"&username="+username;
-		
-		parameters = "session="+session+"&username="+username+"&chatinit="+games_ids[gameselection_int];
+		parameters = "session="+Session.SessionID+"&username="+Session.Login+"&chatinit="+games_ids[gameselection_int];
 		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
 		data = fetch.UploadString(api_url, parameters);
-		
+		//Console.WriteLine(api_url+"?"+parameters);
+		//return;
 		xml.LoadXml(data);
 		//Console.WriteLine(data);
 		xnList = xml.SelectNodes("/root/item");
@@ -167,8 +182,11 @@ public class LongbowCore {
 			if (xn["band"].InnerText == "3"){
 				channel_line = "(OOC) "+channel_line;
 			}
+			
+			channel_line = HttpUtility.HtmlDecode(channel_line);
+			
 			Console.WriteLine(channel_line);
-			channel_lines.Add(channel_line);
+			Data.ChannelBuffer.Add(channel_line);
 		}
 		Console.WriteLine("\n");
 		
@@ -176,17 +194,16 @@ public class LongbowCore {
 		bool loop = true;
 		LongbowWorkerThread Worker = new LongbowWorkerThread();
 		//Thread w = new Thread(Worker.UpdateChannel);
-		//w.Start(channel_lines);
-		ThreadPool.QueueUserWorkItem(o => Worker.UpdateChannel(ref LongbowCore.channel_lines));
+		//w.Start(Data.ChannelBuffer);
+		ThreadPool.QueueUserWorkItem(o => Worker.UpdateChannel(ref Data.ChannelBuffer, ref Data.ChatBuffer, ref Data.ChatCurrent));
 		
 		
 		ConsoleKeyInfo inText;
-		string TextBuffer = "";
 		int uCursorTop;
 		int uCursorLeft;
 		int ExcerptSize;
 		
-		Console.Write("> "+TextBuffer+" ");
+		Console.Write("> "+Data.ChatCurrent+" ");
 		Console.SetCursorPosition(2, Console.CursorTop);
 		
 		while (loop) {
@@ -200,30 +217,65 @@ public class LongbowCore {
 			if (inText.Key == ConsoleKey.Backspace) {
 				if (uCursorLeft > 2){
 					Console.SetCursorPosition(uCursorLeft-1, uCursorTop);
-					TextBuffer = TextBuffer.Substring(0,TextBuffer.Length-1);
+					Data.ChatCurrent = Data.ChatCurrent.Substring(0,Data.ChatCurrent.Length-1);
 					Console.Write(" ");
 				}
 			
 			} else if (inText.Key == ConsoleKey.Enter) {
-			
-				Console.WriteLine(TextBuffer);
-				channel_lines.Add(TextBuffer);
-				TextBuffer = "";
+				Server.SendPost(Data, Session, fetch);
+				Console.WriteLine(Data.ChatCurrent);
+				Data.ChannelBuffer.Add(Data.ChatCurrent);
+				Data.ChatCurrent = "";
 			
 			} else {
 			
 			Console.Write(inText.KeyChar);
-				TextBuffer = TextBuffer + inText.KeyChar;
+				Data.ChatCurrent = Data.ChatCurrent + inText.KeyChar;
 			}
 			
 			Console.SetCursorPosition(0, uCursorTop);
-			Console.Write("> "+TextBuffer+" ");
-			Console.SetCursorPosition(TextBuffer.Length+2, uCursorTop);
+			Console.Write("> "+Data.ChatCurrent+" ");
+			Console.SetCursorPosition(Data.ChatCurrent.Length+2, uCursorTop);
 		}
 		
 		
 	}
 	
+}
+
+// Account or login-related data, here
+public class LongbowSessionData{
+	public string Login;
+	public string SessionID;
+}
+
+// Any kind of channel-related data should go in here. 
+public class LongbowInstanceData {
+	public string ChannelName;
+	public int ChannelID;
+	public string ChatCurrent = "";
+	public string LastPost;
+	public List<string> ChatBuffer = new List<string>();
+	public List<string> ChannelBuffer = new List<string>();
+}
+
+//Talking to the server? Yeah boyeee.
+public class LongbowServer {
+	public void SendPost(LongbowInstanceData Data, LongbowSessionData Session, WebClient fetch){
+		//Console.WriteLine(Data.ChatCurrent);return;
+		Random thisRandom = new Random();
+		int tag = thisRandom.Next(0,10000);
+		string parameters = "postcontent="+HttpUtility.UrlPathEncode(Data.ChatCurrent)+"&session="+Session.SessionID+"&username="+Session.Login+"&gameid="+Data.ChannelID+"&tag="+tag;
+		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
+		fetch.UploadStringAsync(LongbowCore.api_url, parameters);
+	
+	}
+	
+	public void GetNewPosts(LongbowInstanceData Data, LongbowSessionData Session, WebClient fetch){
+		string parameters = "session="+Session.SessionID+"&username="+Session.Login+"&gameid="+Data.ChannelID+"&tag="+tag;
+		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
+		fetch.UploadStringAsync(LongbowCore.api_url, parameters);
+	}
 }
 
 public class LongbowWorkerThread {
@@ -232,26 +284,35 @@ public class LongbowWorkerThread {
 	public int nCursorLeft;
 	public int nCursorTop;
 	private LongbowToolkit Tools = new LongbowToolkit();
+
 	
 	
-	public void UpdateChannel(ref List<string> OurChat){
+	public void UpdateChannel(ref List<string> ChannelBuffer, ref List<string> ChatBuffer, ref string ChatCurrent){
 		uCursorLeft = Console.CursorLeft;
 		uCursorTop = Console.CursorTop;
 		while (true){
 			Thread.Sleep(5000); 
-			OurChat.Add("Dummy Teckst");
-			Tools.RedrawChat(OurChat);
+			ChannelBuffer.Add("Dummy Teckst");
+			Tools.DrawChat(ChannelBuffer);
+			Tools.DrawInput(ChatCurrent);
 		}
 	}
 }
 
 public class LongbowToolkit {
-	/// <summary>
-	/// Un-quotes a quoted string
-	/// </summary>
-	/// <param name="InputTxt">Text string need to be escape with slashes</param>
+
+	public void DrawInput(string ChatCurrent){
 	
-	public void RedrawChat(List<string> OurChat){
+		int uCursorTop;
+		int uCursorLeft;
+		uCursorLeft = Console.CursorLeft;
+		uCursorTop = Console.CursorTop;
+		Console.SetCursorPosition(0, uCursorTop);
+		Console.Write("> "+ChatCurrent+" ");
+		Console.SetCursorPosition(ChatCurrent.Length+2, uCursorTop);
+	}
+	
+	public void DrawChat(List<string> OurChat){
 		//re-render the whole window
 			
 		int ExcerptSize;
@@ -268,6 +329,11 @@ public class LongbowToolkit {
 			
 	}
 	
+	
+	/// <summary>
+	/// Un-quotes a quoted string
+	/// </summary>
+	/// <param name="InputTxt">Text string need to be escape with slashes</param>	
 	public string StripSlashes(string InputTxt)
 	{
 	    // List of characters handled:
