@@ -70,6 +70,7 @@ public class LongbowCore {
 		string		lberror	= string.Empty;
 		string[]	game_entry = new string[2];
 		int gameselection_int = 0;
+		int chat_slice = 0;
 		List<string> games_names = new List<string>(); 
 		List<string> games_ids = new List<string>();
 		
@@ -247,9 +248,7 @@ public class LongbowCore {
 				Data.ChatCurrent = Data.ChatCurrent + inText.KeyChar;
 			}
 			
-			Console.SetCursorPosition(0, uCursorTop);
-			Console.Write("> "+Data.ChatCurrent+" ");
-			Console.SetCursorPosition(Data.ChatCurrent.Length+2, uCursorTop);
+			Tools.DrawInput(Data.ChatCurrent);
 			
 		}
 		
@@ -356,8 +355,18 @@ public class LongbowToolkit {
 		uCursorLeft = Console.CursorLeft;
 		uCursorTop = Console.CursorTop;
 		Console.SetCursorPosition(0, uCursorTop);
-		Console.Write("> "+ChatCurrent+" ");
-		Console.SetCursorPosition(ChatCurrent.Length+2, uCursorTop);
+		
+		//a little jiggering to account for editing posts which are bigger than the window
+		if (Console.WindowWidth > ChatCurrent.Length+4) {
+			Console.Write("> "+ChatCurrent+" ");
+			Console.SetCursorPosition(ChatCurrent.Length+2, uCursorTop);
+		} else {
+			
+			int chat_slice = ChatCurrent.Length-Console.WindowWidth+4; //+2 to account for the opening "> ", +2 to account for gap at end of line
+			Console.Write("> "+ChatCurrent.Substring(chat_slice)+"  ");
+			Console.SetCursorPosition(Console.WindowWidth-2, uCursorTop);
+		}
+		
 	}
 	
 	public void DrawChat(List<string> SrsChat, List<string> TempChat){
