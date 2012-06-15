@@ -3,13 +3,11 @@
 
 using System;
 using System.IO;
-using System.Diagnostics;
 using System.Threading;
 using System.Net;
 using System.Web;
 using System.Linq;
 using System.Xml;
-using System.Xml.Linq;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
@@ -134,7 +132,7 @@ public class LongbowCore {
 		
 		
 		Console.WriteLine("\n\n\n\n\n\n\n\n\nLogged in as: {1} Games total: {0}", games_count, Session.Login);
-		Console.WriteLine("|=====================================|\n");
+		Tools.DrawDivider();
 		for (int i = 0; i < games_ids.Count(); i++){
 			Console.WriteLine("> "+(i+1)+"	(ID: "+games_ids[i]+")  	"+Tools.StripSlashes(games_names[i]));
 		}
@@ -162,7 +160,8 @@ public class LongbowCore {
 		Data.ChannelID = Convert.ToInt32(games_ids[gameselection_int]);
 		Data.ChannelName = games_names[gameselection_int];
 		
-		Console.WriteLine("Joining \"{0}\".\n|=============|", games_names[gameselection_int]);
+		Console.WriteLine("Joining \"{0}\".\n", games_names[gameselection_int]);
+		Tools.DrawDivider();
 		
 		
 		//being lazy and plunking down the connection code here again
@@ -215,7 +214,7 @@ public class LongbowCore {
 		int uCursorLeft;
 		int ExcerptSize;
 		
-		Console.Write("> "+Data.ChatCurrent+" ");
+		//sConsole.Write("> "+Data.ChatCurrent+" ");
 		Console.SetCursorPosition(2, Console.CursorTop);
 		
 		while (loop) {
@@ -270,6 +269,7 @@ public class LongbowInstanceData {
 	public string ChatCurrent = "";
 	public string LastPost; //yes, we really are treating the timestamp as a string. PHP badger don't care.
 	public List<string> ChannelBuffer = new List<string>();
+	public List<string> ChannelBufferStamps = new List<string>();
 	public List<string> PostQueue = new List<string>(); //We need to loop through these at a steady rate to prevent getting ratelimited
 	public List<string> TemporaryBuffer = new List<string>(); //So we can emulate instant chat sending
 }
@@ -324,7 +324,7 @@ public class LongbowWorkerThread {
 		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
 		string NewData = fetch.UploadString(LongbowCore.api_url, parameters);
 		LongbowToolkit Toolkit = new LongbowToolkit();
-		Toolkit.AddNewPosts(Data, NewData);
+		Toolkit.AddNewPosts(ref Data, NewData);
 	}
 	
 	public void UpdateChannel(ref LongbowInstanceData Data, ref LongbowSessionData Session){
@@ -348,6 +348,24 @@ public class LongbowWorkerThread {
 
 public class LongbowToolkit {
 
+	public void DrawDivider(int MaxWidth=0){
+		string divider = "";
+		int Width = 0;
+		
+		if (MaxWidth > 0 && MaxWidth < Console.WindowWidth){
+			Width = MaxWidth;
+		} else {
+			Width = Console.WindowWidth;
+		}
+		
+		for (int i = 0; i < Width-2; i++){
+			divider = divider + "=";
+		}
+		
+		divider = "#" + divider + "#"; 
+		Console.WriteLine(divider);
+	}
+
 	public void DrawInput(string ChatCurrent){
 	
 		int uCursorTop;
@@ -369,38 +387,29 @@ public class LongbowToolkit {
 		
 	}
 	
-	public void DrawChat(List<string> SrsChat, List<string> TempChat){
+	public void DrawChat(List<string> Chat, List<string> TempChat){
 		//re-render the whole window
 		
-		
-		//this doesn't make any sense to me. If I use AddRange to add to either the SrsChat
-		//list OR a copy of it, changes to the list bubble back to the original version in
-		//the Data class. Instead, I have to add the strings from the SrsChat list to the end
-		//of the RealChat list one by one. WTF.
-		List<string> RealChat = new List<string>();
-		for (int h = 0; h < SrsChat.Count; h++){
-			RealChat.Add(SrsChat[h]);
-		}
-		
-		RealChat.AddRange(TempChat);
 		int ExcerptSize;
-		if (RealChat.Count < 1) { return; }
+		if (Chat.Count < 1) { return; }
 		
-		if (RealChat.Count > 30){
+		if (Chat.Count > 30){
 			ExcerptSize = 0;
 		} else {
-			ExcerptSize = RealChat.Count - 30;
+			ExcerptSize = Chat.Count - 30;
 		}
 	
-		for (int i = ExcerptSize; i < RealChat.Count; i++){
-			Console.WriteLine(RealChat[i]);
+		for (int i = ExcerptSize; i < Chat.Count; i++){
+			Console.WriteLine(Chat[i]);
 		}
 		
-		
+		for (int i = 0; i < TempChat.Count; i++){
+			Console.WriteLine(TempChat[i]);
+		}
 		
 	}
 	
-	public void AddNewPosts(LongbowInstanceData Data, string NewData){
+	public void AddNewPosts(ref LongbowInstanceData Data, string NewData){
 		Data.TemporaryBuffer.RemoveRange(0, Data.TemporaryBuffer.Count);
 		LongbowToolkit Tools = new LongbowToolkit();
 		
@@ -410,6 +419,7 @@ public class LongbowToolkit {
 		XmlNodeList xnList = xml.SelectNodes("/root/item");
 		
 		string curtext = string.Empty;
+		string timestamp = string.Empty;
 		string channel_line = string.Empty;
 		
 		foreach (XmlNode xn in xnList){
@@ -420,6 +430,7 @@ public class LongbowToolkit {
 			}
 			
 			Data.LastPost = xn["timestamp"].InnerText;
+			timestamp = Data.LastPost;
 			
 			channel_line = xn["username"].InnerText+": "+Tools.StripSlashes(curtext);
 			
@@ -428,8 +439,10 @@ public class LongbowToolkit {
 			}
 			
 			channel_line = HttpUtility.HtmlDecode(channel_line);
-			
-			Data.ChannelBuffer.Add(channel_line);
+			if (!Data.ChannelBufferStamps.Exists(item => item == timestamp)){
+				Data.ChannelBuffer.Add(channel_line);
+				Data.ChannelBufferStamps.Add(timestamp);
+			}
 		}
 		
 	}
