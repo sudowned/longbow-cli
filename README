@@ -1,0 +1,51 @@
+Longbow-CLI, the reference implementation for the Longbow API
+---
+
+Table of Contents
+-
+
+I.   Introduction
+II.  Stuff included
+III. Usage
+
+---
+
+Introduction
+-
+
+This project exists for two reasons: firstly, to provide something
+to look at for anyone who wants to put together a more advanced
+client; secondly as a consolation prize to a member of my gaming
+group, who holds BitchX and NetHack as the twin pinnacles of
+software development. This was, basically, the only way I'd get
+him to use Phyre.
+
+
+---
+Stuff included
+-
+
+In addition to the main source file (longbow.cs), you should have:
+
+build.sh   - Uses mkbundle to create a self-executable of Longbow-CLI
+             which doesn't require Mono. Will screw with your environ
+             -ment variables, read the script first to be sure.
+
+compile.sh - Compiles Longbow to a standard Mono .exe. Also integrates
+	     the build number in longbow.vr.
+
+longbow.vr - Contains the build number. 
+
+package.sh - Calls build.sh, then packs the resulting executable and
+	     and longbow.vr into a .zip for distribution.
+
+---
+Usage
+-
+
+Run longbow (or mono longbow.exe) from console. Optionally, supply
+your username as the first argument in order to skip needing to
+type it at login.
+
+If you run into any problems (you will) please report your bugs at
+tracker.sudowned.com as soon as possible.
