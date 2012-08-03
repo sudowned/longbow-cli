@@ -413,6 +413,36 @@ public class LongbowWorkerThread {
 
 public class LongbowToolkit {
 
+	public void SafeDraw(string Line){
+		int pos;
+		int MinNumLines = Line.Length / Console.WindowWidth;
+		string buffer;
+		List<string> Completed = new List<string>();		
+		
+		while (Line.Length > 1){
+			if (Line.Length > Console.WindowWidth){
+				buffer = Line.Substring(0, Console.WindowWidth);
+				pos = buffer.LastIndexOf(" ");
+				if (pos > -1) {
+					Completed.Add(Line.Substring(0, pos));
+					Line = Line.Substring(pos+1);
+				} else {
+					Completed.Add(Line.Substring(0, Console.WindowWidth));
+					Line = Line.Substring(Console.WindowWidth);
+				}
+			} else {
+				Completed.Add(Line.Substring(0, Line.Length));
+				Line = "";
+			}
+		}
+		
+		for (int i = 0; i < Completed.Count; i++){
+			Console.WriteLine(Completed[i]);
+		}
+		
+		
+	}
+
 	public void DrawDivider(int MaxWidth=0){
 		string divider = "";
 		int Width = 0;
@@ -476,11 +506,13 @@ public class LongbowToolkit {
 		}
 	
 		for (int i = ExcerptSize; i < Chat.Count; i++){
-			Console.WriteLine(Chat[i]);
+			SafeDraw(Chat[i]);
+			//Console.WriteLine(Chat[i]);
 		}
 		
 		for (int i = 0; i < TempChat.Count; i++){
-			Console.WriteLine(TempChat[i]);
+			SafeDraw(TempChat[i]);
+			//Console.WriteLine(TempChat[i]);
 		}
 		
 	}
