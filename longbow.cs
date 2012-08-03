@@ -199,7 +199,7 @@ public class LongbowCore {
 		
 		//render the screen manually the first time
 		Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
-		Tools.DrawInput(Data.ChatCurrent);
+		Tools.DrawInput(ref Data);
 				
 		//MAIN LOOP BEGIN
 		bool loop = true;
@@ -213,6 +213,10 @@ public class LongbowCore {
 		int uCursorTop;
 		int uCursorLeft;
 		int ExcerptSize;
+		string LeftBuffer;
+		string RightBuffer;
+		Data.vCursorPos = 2;
+		Data.vBufferPos = -1;
 		
 		//sConsole.Write("> "+Data.ChatCurrent+" ");
 		Console.SetCursorPosition(2, Console.CursorTop);
@@ -228,26 +232,84 @@ public class LongbowCore {
 			if (inText.Key == ConsoleKey.Backspace) {
 				if (uCursorLeft > 2){
 					Console.SetCursorPosition(uCursorLeft-1, uCursorTop);
-					Data.ChatCurrent = Data.ChatCurrent.Substring(0,Data.ChatCurrent.Length-1);
+					LeftBuffer = Data.ChatCurrent.Substring(0,Data.vCursorPos-2);
+					RightBuffer = Data.ChatCurrent.Substring(Data.vCursorPos-2);
+					Data.ChatCurrent = LeftBuffer.Substring(0,LeftBuffer.Length-1) + RightBuffer;
 					Console.Write(" ");
+					Data.vCursorPos--;
 				}
 			
 			} else if (inText.Key == ConsoleKey.Enter) {
 				Console.WriteLine(Session.Login+": "+Data.ChatCurrent);
 				Data.TemporaryBuffer.Add(Session.Login+": "+Data.ChatCurrent);
 				Tools.QueueNewPost(ref Data, Data.ChatCurrent);
+				Data.ChatPrev.Add(Data.ChatCurrent);
 				Data.ChatCurrent = "";
+				Data.vCursorPos = 2;
+				Data.vBufferPos = -1;
 				ThreadPool.QueueUserWorkItem(o => Worker.UpdateChannel(ref Data, ref Session));
 				Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
-				Tools.DrawInput(Data.ChatCurrent);
+				Tools.DrawInput(ref Data);
+			
+			} else if (inText.Key == ConsoleKey.LeftArrow || inText.Key == ConsoleKey.RightArrow) {
+				
+				if (inText.Key == ConsoleKey.LeftArrow) { 
+					if (Data.vCursorPos > 2){
+						Console.SetCursorPosition(uCursorLeft-1, uCursorTop);
+						Data.vCursorPos--;
+					}
+					
+				} else {
+					if (Data.vCursorPos < Data.ChatCurrent.Length+2) {
+						Console.SetCursorPosition(uCursorLeft+2, uCursorTop);
+						Data.vCursorPos++;
+					}
+				}
+				
+				
+			} else if (inText.Key == ConsoleKey.UpArrow || inText.Key == ConsoleKey.DownArrow){
+				Data.vCursorPos = 2;
+				if (inText.Key == ConsoleKey.UpArrow){
+					
+					if (Data.vBufferPos == -1) {
+						Data.ChatPrev.Add(Data.ChatCurrent);
+						Data.vBufferPos++;
+					}
+				
+					if (Data.vBufferPos+1 < Data.ChatPrev.Count){
+						Data.ChatPrev.Reverse();
+						Data.vBufferPos++;
+						Data.ChatCurrent = Data.ChatPrev[Data.vBufferPos];
+						Data.ChatPrev.Reverse();
+					}
+				} else {
+					if (Data.vBufferPos > 0){
+						Data.ChatPrev.Reverse();
+						Data.vBufferPos--;
+						Data.ChatCurrent = Data.ChatPrev[Data.vBufferPos];
+						Data.ChatPrev.Reverse();
+					} else if (Data.vBufferPos == 0) {
+						Data.ChatCurrent = Data.ChatPrev[Data.ChatPrev.Count()-1];
+						Data.vBufferPos = -1;
+						Data.ChatPrev.RemoveAt(Data.ChatPrev.Count()-1);
+					}
+				}
+				
+				Data.vCursorPos = Data.ChatCurrent.Length+2;
 			
 			} else {
 			
 			Console.Write(inText.KeyChar);
-				Data.ChatCurrent = Data.ChatCurrent + inText.KeyChar;
+				//Data.ChatCurrent = Data.ChatCurrent.Substring(0,Data.ChatCurrent.Length-1);
+				LeftBuffer = Data.ChatCurrent.Substring(0,Data.vCursorPos-2);
+				RightBuffer = Data.ChatCurrent.Substring(Data.vCursorPos-2);
+				Data.ChatCurrent = LeftBuffer + inText.KeyChar + RightBuffer;
+				
+				//Data.ChatCurrent = Data.ChatCurrent + inText.KeyChar;
+				Data.vCursorPos++;
 			}
 			
-			Tools.DrawInput(Data.ChatCurrent);
+			Tools.DrawInput(ref Data);
 			
 		}
 		
@@ -268,10 +330,13 @@ public class LongbowInstanceData {
 	public int ChannelID;
 	public string ChatCurrent = "";
 	public string LastPost; //yes, we really are treating the timestamp as a string. PHP badger don't care.
+	public List<string> ChatPrev = new List<string>();
 	public List<string> ChannelBuffer = new List<string>();
 	public List<string> ChannelBufferStamps = new List<string>();
 	public List<string> PostQueue = new List<string>(); //We need to loop through these at a steady rate to prevent getting ratelimited
 	public List<string> TemporaryBuffer = new List<string>(); //So we can emulate instant chat sending
+	public int vCursorPos;
+	public int vBufferPos;
 }
 
 //Talking to the server? Yeah boyeee.
@@ -339,7 +404,7 @@ public class LongbowWorkerThread {
 			Thread.Sleep(5000);
 			//thingy = Data.ChannelBuffer.Count() - 2;
 			Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
-			Tools.DrawInput(Data.ChatCurrent);
+			Tools.DrawInput(ref Data);
 			//Console.WriteLine("\n\n"+Data.ChannelBuffer[thingy]);
 			Server.GetNewPosts(Data, Session, new WebClient());
 		}
@@ -366,24 +431,35 @@ public class LongbowToolkit {
 		Console.WriteLine(divider);
 	}
 
-	public void DrawInput(string ChatCurrent){
+	public void DrawInput(ref LongbowInstanceData Data){ //takes the entire InstanceData object as argument because it needs several values
 	
+	
+		string ChatCurrent = Data.ChatCurrent;
+		string Blanker = "";
 		int uCursorTop;
 		int uCursorLeft;
 		uCursorLeft = Console.CursorLeft;
 		uCursorTop = Console.CursorTop;
 		Console.SetCursorPosition(0, uCursorTop);
 		
+		//we need to assemble a "tray" of blank text to prevent flickering
+		for (int i = 0; i < Console.WindowWidth-ChatCurrent.Length-2; i++) {
+			Blanker = Blanker + " ";
+		}
+		
 		//a little jiggering to account for editing posts which are bigger than the window
 		if (Console.WindowWidth > ChatCurrent.Length+4) {
-			Console.Write("> "+ChatCurrent+" ");
-			Console.SetCursorPosition(ChatCurrent.Length+2, uCursorTop);
+			Console.Write("> "+ChatCurrent+Blanker);
+			//Console.SetCursorPosition(ChatCurrent.Length+2, uCursorTop);
+			Console.SetCursorPosition(Data.vCursorPos, uCursorTop);
 		} else {
 			
 			int chat_slice = ChatCurrent.Length-Console.WindowWidth+4; //+2 to account for the opening "> ", +2 to account for gap at end of line
 			Console.Write("> "+ChatCurrent.Substring(chat_slice)+"  ");
 			Console.SetCursorPosition(Console.WindowWidth-2, uCursorTop);
 		}
+		
+		
 		
 	}
 	
