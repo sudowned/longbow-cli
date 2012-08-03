@@ -42,7 +42,7 @@ public class LongbowCore {
 		
 		if (args.Length > 0){
 			Session.Login = args[0];
-			if (username.Length < 3){
+			if (Session.Login.Length < 3){
 			Console.WriteLine("Invalid username. Please try again.");
 			askusername = true;
 		}
@@ -189,7 +189,8 @@ public class LongbowCore {
 			channel_line = xn["username"].InnerText+": "+Tools.StripSlashes(curtext);
 			
 			if (xn["band"].InnerText == "3"){
-				channel_line = "(OOC) "+channel_line;
+					channel_line = "(OOC) "+channel_line;
+				
 			}
 			
 			channel_line = HttpUtility.HtmlDecode(channel_line);
@@ -437,7 +438,14 @@ public class LongbowToolkit {
 		}
 		
 		for (int i = 0; i < Completed.Count; i++){
+		
+			if (Completed[i].IndexOf("(OOC) ") == 0){
+				//Console.BackgroundColor = ConsoleColor.DarkGray;
+				Console.ForegroundColor = ConsoleColor.Gray;
+			}
+			
 			Console.WriteLine(Completed[i]);
+			Console.ResetColor();
 		}
 		
 		
