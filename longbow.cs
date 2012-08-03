@@ -282,7 +282,7 @@ public class LongbowServer {
 		WebClient fetch = new WebClient();
 		Random thisRandom = new Random();
 		int tag = thisRandom.Next(0,10000);
-		string parameters = "postcontent="+HttpUtility.UrlPathEncode(Data.PostQueue[0])+"&session="+Session.SessionID+"&username="+Session.Login+"&gameid="+Data.ChannelID+"&tag="+tag;
+		string parameters = "postcontent="+HttpUtility.UrlEncode(Data.PostQueue[0])+"&session="+Session.SessionID+"&username="+Session.Login+"&gameid="+Data.ChannelID+"&tag="+tag;
 		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
 		fetch.UploadStringAsync(LongbowCore.api_url, parameters);
 	}
