@@ -418,7 +418,12 @@ public class LongbowToolkit {
 		int pos;
 		int MinNumLines = Line.Length / Console.WindowWidth;
 		string buffer;
-		List<string> Completed = new List<string>();		
+		List<string> Completed = new List<string>();
+		bool OOC = false;
+		
+		if (Line.IndexOf("(OOC) ") == 0){
+			OOC = true;
+		}
 		
 		while (Line.Length > 1){
 			if (Line.Length > Console.WindowWidth){
@@ -437,16 +442,18 @@ public class LongbowToolkit {
 			}
 		}
 		
+		if (OOC){
+			Console.ForegroundColor = ConsoleColor.Gray;
+		}
+		
 		for (int i = 0; i < Completed.Count; i++){
 		
-			if (Completed[i].IndexOf("(OOC) ") == 0){
-				//Console.BackgroundColor = ConsoleColor.DarkGray;
-				Console.ForegroundColor = ConsoleColor.Gray;
-			}
+			
 			
 			Console.WriteLine(Completed[i]);
-			Console.ResetColor();
 		}
+		
+		Console.ResetColor();
 		
 		
 	}
