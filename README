@@ -29,10 +29,14 @@ In addition to the main source file (longbow.cs), you should have:
 
 build.sh   - Uses mkbundle to create a self-executable of Longbow-CLI
              which doesn't require Mono. Will screw with your environ
-             -ment variables, read the script first to be sure.
+             -ment variables, read the script first to be sure. Also
+	     this probably won't work unless you're on a Mac. I'd love
+	     to get this working for recent Debian distros but I'm
+	     busy.
 
-compile.sh - Compiles Longbow to a standard Mono .exe. Also integrates
-	     the build number in longbow.vr.
+compile.sh - Compiles Longbow to a standard Mono .exe. Also increments
+	     the build number in longbow.vr. You're best off using this
+	     instead of build.sh unless you're on OSX 10.7.
 
 longbow.vr - Contains the build number. 
 
