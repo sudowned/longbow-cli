@@ -103,7 +103,9 @@ public class LongbowCore {
 	
 		foreach (XmlNode xn in xnList){
 			Session.SessionID = xn["luxSession"].InnerText;
+			Session.Login = xn["luxLogin"].InnerText;
 		}
+		
 	
 		xnList = xml.SelectNodes("/root");
 	
