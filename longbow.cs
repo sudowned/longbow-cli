@@ -217,7 +217,8 @@ public class LongbowCore {
 		string LeftBuffer;
 		string RightBuffer;
 		Data.vCursorPos = 2;
-		Data.vBufferPos = -1;
+		Data.vBufferPos = 0;
+		Data.ChatPrev.Add("");
 		
 		//sConsole.Write("> "+Data.ChatCurrent+" ");
 		Console.SetCursorPosition(2, Console.CursorTop);
@@ -246,8 +247,12 @@ public class LongbowCore {
 				Tools.QueueNewPost(ref Data, Data.ChatCurrent);
 				Data.ChatPrev.Add(Data.ChatCurrent);
 				Data.ChatCurrent = "";
+				if (Data.ChatPrev[0].Length > 7){
+					Data.ChatPrev.Add(Data.ChatPrev[0]);
+				}
+				Data.ChatPrev[0] = "";
 				Data.vCursorPos = 2;
-				Data.vBufferPos = -1;
+				Data.vBufferPos = 0;
 				ThreadPool.QueueUserWorkItem(o => Worker.UpdateChannel(ref Data, ref Session));
 				Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
 				Tools.DrawInput(ref Data);
@@ -272,27 +277,21 @@ public class LongbowCore {
 				Data.vCursorPos = 2;
 				if (inText.Key == ConsoleKey.UpArrow){
 					
-					if (Data.vBufferPos == -1) {
-						Data.ChatPrev.Add(Data.ChatCurrent);
-						Data.vBufferPos++;
+					if (Data.vBufferPos == 0){
+						Data.ChatPrev[0] = Data.ChatCurrent;
 					}
-				
-					if (Data.vBufferPos+1 < Data.ChatPrev.Count){
-						Data.ChatPrev.Reverse();
+					
+					if (Data.vBufferPos < Data.ChatPrev.Count-1){
 						Data.vBufferPos++;
-						Data.ChatCurrent = Data.ChatPrev[Data.vBufferPos];
-						Data.ChatPrev.Reverse();
+						Data.ChatCurrent = Data.ChatPrev[Data.ChatPrev.Count-Data.vBufferPos];
+						
 					}
 				} else {
 					if (Data.vBufferPos > 0){
-						Data.ChatPrev.Reverse();
 						Data.vBufferPos--;
-						Data.ChatCurrent = Data.ChatPrev[Data.vBufferPos];
-						Data.ChatPrev.Reverse();
+						Data.ChatCurrent = Data.ChatPrev[Data.ChatPrev.Count-Data.vBufferPos-1];
 					} else if (Data.vBufferPos == 0) {
-						Data.ChatCurrent = Data.ChatPrev[Data.ChatPrev.Count()-1];
-						Data.vBufferPos = -1;
-						Data.ChatPrev.RemoveAt(Data.ChatPrev.Count()-1);
+						Data.ChatCurrent = Data.ChatPrev[0];
 					}
 				}
 				
@@ -350,7 +349,17 @@ public class LongbowServer {
 		int tag = thisRandom.Next(0,10000);
 		string parameters = "postcontent="+HttpUtility.UrlEncode(Data.PostQueue[0])+"&session="+Session.SessionID+"&username="+Session.Login+"&gameid="+Data.ChannelID+"&tag="+tag;
 		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
+		try {
 		fetch.UploadStringAsync(LongbowCore.api_url, parameters);
+		} catch (WebException e) {
+			Console.ForegroundColor = ConsoleColor.White;
+			Console.BackgroundColor = ConsoleColor.Red;
+			Console.SetCursorPosition(0, Console.CursorTop);
+			Console.Write("# It appears your connection to the server has been interrupted.");
+			Console.ResetColor();
+			Console.Write("\n> ");
+			Console.SetCursorPosition(2, Console.CursorTop);
+		}
 	}
 	
 	public void GetNewPosts(LongbowInstanceData Data, LongbowSessionData Session, WebClient fetch){
@@ -388,9 +397,20 @@ public class LongbowWorkerThread {
 	
 	public void GetChannelUpdates(ref LongbowInstanceData Data, string parameters, ref WebClient fetch){
 		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
-		string NewData = fetch.UploadString(LongbowCore.api_url, parameters);
-		LongbowToolkit Toolkit = new LongbowToolkit();
-		Toolkit.AddNewPosts(ref Data, NewData);
+		try {
+			string NewData = fetch.UploadString(LongbowCore.api_url, parameters);
+			LongbowToolkit Toolkit = new LongbowToolkit();
+			Toolkit.AddNewPosts(ref Data, NewData);
+			
+		} catch (WebException e) {
+			Console.ForegroundColor = ConsoleColor.White;
+			Console.BackgroundColor = ConsoleColor.Red;
+			Console.SetCursorPosition(0, Console.CursorTop);
+			Console.Write("# It appears your connection to the server has been interrupted.");
+			Console.ResetColor();
+			Console.Write("\n> ");
+			Console.SetCursorPosition(2, Console.CursorTop);
+		}
 	}
 	
 	public void UpdateChannel(ref LongbowInstanceData Data, ref LongbowSessionData Session){
