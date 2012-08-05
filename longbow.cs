@@ -239,6 +239,8 @@ public class LongbowCore {
 					Data.ChatCurrent = LeftBuffer.Substring(0,LeftBuffer.Length-1) + RightBuffer;
 					Console.Write(" ");
 					Data.vCursorPos--;
+					
+					Tools.DrawInput(ref Data);
 				}
 			
 			} else if (inText.Key == ConsoleKey.Enter) {
@@ -272,6 +274,7 @@ public class LongbowCore {
 					}
 				}
 				
+				Tools.DrawInput(ref Data);
 				
 			} else if (inText.Key == ConsoleKey.UpArrow || inText.Key == ConsoleKey.DownArrow){
 				Data.vCursorPos = 2;
@@ -296,10 +299,12 @@ public class LongbowCore {
 				}
 				
 				Data.vCursorPos = Data.ChatCurrent.Length+2;
-			
+				
+				Tools.DrawInput(ref Data);
+				
 			} else {
 			
-			Console.Write(inText.KeyChar);
+			//Console.Write(inText.KeyChar);
 				//Data.ChatCurrent = Data.ChatCurrent.Substring(0,Data.ChatCurrent.Length-1);
 				LeftBuffer = Data.ChatCurrent.Substring(0,Data.vCursorPos-2);
 				RightBuffer = Data.ChatCurrent.Substring(Data.vCursorPos-2);
@@ -307,9 +312,13 @@ public class LongbowCore {
 				
 				//Data.ChatCurrent = Data.ChatCurrent + inText.KeyChar;
 				Data.vCursorPos++;
+				
+				if (Data.vCursorPos+2 < Data.ChatCurrent.Length){
+					Tools.DrawInput(ref Data);
+				}
+				
 			}
 			
-			Tools.DrawInput(ref Data);
 			
 		}
 		
@@ -332,9 +341,11 @@ public class LongbowInstanceData {
 	public string LastPost; //yes, we really are treating the timestamp as a string. PHP badger don't care.
 	public List<string> ChatPrev = new List<string>();
 	public List<string> ChannelBuffer = new List<string>();
+	public List<string> ChannelBuffer_Last = new List<string>();
 	public List<string> ChannelBufferStamps = new List<string>();
 	public List<string> PostQueue = new List<string>(); //We need to loop through these at a steady rate to prevent getting ratelimited
 	public List<string> TemporaryBuffer = new List<string>(); //So we can emulate instant chat sending
+	public string TemporaryBuffer_Last;
 	public int vCursorPos;
 	public int vBufferPos;
 }
@@ -416,6 +427,7 @@ public class LongbowWorkerThread {
 	public void UpdateChannel(ref LongbowInstanceData Data, ref LongbowSessionData Session){
 		uCursorLeft = Console.CursorLeft;
 		uCursorTop = Console.CursorTop;
+		bool ReloadChannel = false;
 		
 		//int thingy;
 		WebClient Client = new WebClient();
@@ -424,8 +436,29 @@ public class LongbowWorkerThread {
 		while (true){
 			Thread.Sleep(5000);
 			//thingy = Data.ChannelBuffer.Count() - 2;
-			Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
-			Tools.DrawInput(ref Data);
+			
+			for (int i = 0; i < Data.ChannelBuffer.Count; i++){
+				if (!ReloadChannel){
+					Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
+					Tools.DrawInput(ref Data);
+					ReloadChannel = true;
+					break;
+				}
+				
+				if (Data.ChannelBuffer.Count > Data.ChannelBuffer_Last.Count){
+					Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
+					Tools.DrawInput(ref Data);
+					break;
+				}
+				
+				if (Data.ChannelBuffer[i] != Data.ChannelBuffer_Last[i]){
+					Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
+					Tools.DrawInput(ref Data);
+					break;
+				}
+			}
+			
+			
 			//Console.WriteLine("\n\n"+Data.ChannelBuffer[thingy]);
 			Server.GetNewPosts(Data, Session, Client);
 		}
@@ -557,6 +590,13 @@ public class LongbowToolkit {
 	}
 	
 	public void AddNewPosts(ref LongbowInstanceData Data, string NewData){
+		
+		Data.ChannelBuffer_Last.Clear();
+		
+		for (int i = 0; i < Data.ChannelBuffer.Count; i++){
+			Data.ChannelBuffer_Last.Add(Data.ChannelBuffer[i]);
+		}
+	
 		Data.TemporaryBuffer.RemoveRange(0, Data.TemporaryBuffer.Count);
 		LongbowToolkit Tools = new LongbowToolkit();
 		
@@ -631,3 +671,12 @@ public class LongbowToolkit {
 	    return Result;
 	}
 }
+
+static class Extensions
+{
+        public static IList<T> Clone<T>(this IList<T> listToClone) where T: ICloneable
+        {
+                return listToClone.Select(item => (T)item.Clone()).ToList();
+        }
+}
+
