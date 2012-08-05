@@ -418,7 +418,7 @@ public class LongbowWorkerThread {
 		uCursorTop = Console.CursorTop;
 		
 		//int thingy;
-		
+		WebClient Client = new WebClient();
 		LongbowServer Server = new LongbowServer();
 		
 		while (true){
@@ -427,16 +427,17 @@ public class LongbowWorkerThread {
 			Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
 			Tools.DrawInput(ref Data);
 			//Console.WriteLine("\n\n"+Data.ChannelBuffer[thingy]);
-			Server.GetNewPosts(Data, Session, new WebClient());
+			Server.GetNewPosts(Data, Session, Client);
 		}
 	}
 }
 
 public class LongbowToolkit {
 
-	public void SafeDraw(string Line){
+	public int SafeDraw(string Line){
 		int pos;
 		int MinNumLines = Line.Length / Console.WindowWidth;
+		int NumLines = 0;
 		string buffer;
 		List<string> Completed = new List<string>();
 		bool OOC = false;
@@ -471,9 +472,12 @@ public class LongbowToolkit {
 			
 			
 			Console.WriteLine(Completed[i]);
+			NumLines = i;
 		}
 		
 		Console.ResetColor();
+		
+		return NumLines;
 		
 		
 	}
