@@ -239,11 +239,13 @@ public class LongbowCore {
 					LeftBuffer = Data.ChatCurrent.Substring(0,Data.vCursorPos-2);
 					RightBuffer = Data.ChatCurrent.Substring(Data.vCursorPos-2);
 					Data.ChatCurrent = LeftBuffer.Substring(0,LeftBuffer.Length-1) + RightBuffer;
-					Console.Write(" ");
+					Console.Write(" "+uCursorLeft);
 					Data.vCursorPos--;
 					
-					Tools.DrawInput(ref Data);
+					
 				}
+				
+				Tools.DrawInput(ref Data);
 			
 			} else if (inText.Key == ConsoleKey.Enter) {
 				Console.WriteLine(Session.Login+": "+Data.ChatCurrent);
@@ -265,7 +267,7 @@ public class LongbowCore {
 				
 				if (inText.Key == ConsoleKey.LeftArrow) { 
 					if (Data.vCursorPos > 2){
-						Console.SetCursorPosition(uCursorLeft-1, uCursorTop);
+							Console.SetCursorPosition(Console.CursorLeft-1, uCursorTop);
 						Data.vCursorPos--;
 					}
 					
@@ -304,7 +306,7 @@ public class LongbowCore {
 				
 				Tools.DrawInput(ref Data);
 				
-			} else {
+			} else { //Process it as chantext input
 			
 			//Console.Write(inText.KeyChar);
 				//Data.ChatCurrent = Data.ChatCurrent.Substring(0,Data.ChatCurrent.Length-1);
@@ -315,9 +317,7 @@ public class LongbowCore {
 				//Data.ChatCurrent = Data.ChatCurrent + inText.KeyChar;
 				Data.vCursorPos++;
 				
-				if (Data.vCursorPos+2 < Data.ChatCurrent.Length){
-					Tools.DrawInput(ref Data);
-				}
+				Tools.DrawInput(ref Data);
 				
 			}
 			
@@ -368,7 +368,7 @@ public class LongbowServer {
 			Console.ForegroundColor = ConsoleColor.White;
 			Console.BackgroundColor = ConsoleColor.Red;
 			Console.SetCursorPosition(0, Console.CursorTop);
-			Console.Write("# It appears your connection to the server has been interrupted.");
+			Console.Write("# It appears your connection to the server has been interrupted. (Tried to send post data)");
 			Console.ResetColor();
 			Console.Write("\n> ");
 			Console.SetCursorPosition(2, Console.CursorTop);
@@ -379,7 +379,7 @@ public class LongbowServer {
 		string parameters = "session="+Session.SessionID+"&username="+Session.Login+"&gameid="+Data.ChannelID+"&postedsince="+Data.LastPost;
 		
 		LongbowWorkerThread Async = new LongbowWorkerThread();
-		ThreadPool.QueueUserWorkItem(o => Async.GetChannelUpdates(ref Data, parameters, ref fetch));
+		ThreadPool.QueueUserWorkItem(o => Async.GetChannelUpdates(ref Data, parameters));
 		
 		//ThreadPool.QueueUserWorkItem(o => Worker.UpdateChannel(ref Data.ChannelBuffer, ref Data.PostQueue, ref Data.ChatCurrent));
 		
@@ -408,9 +408,11 @@ public class LongbowWorkerThread {
 		}
 	}
 	
-	public void GetChannelUpdates(ref LongbowInstanceData Data, string parameters, ref WebClient fetch){
-		fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
+	public void GetChannelUpdates(ref LongbowInstanceData Data, string parameters){
+		
 		try {
+			WebClient fetch = new WebClient();
+			fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
 			string NewData = fetch.UploadString(LongbowCore.api_url, parameters);
 			LongbowToolkit Toolkit = new LongbowToolkit();
 			Toolkit.AddNewPosts(ref Data, NewData);
@@ -419,7 +421,12 @@ public class LongbowWorkerThread {
 			Console.ForegroundColor = ConsoleColor.White;
 			Console.BackgroundColor = ConsoleColor.Red;
 			Console.SetCursorPosition(0, Console.CursorTop);
-			Console.Write("# It appears your connection to the server has been interrupted.");
+			Console.WriteLine("# It appears your connection to the server has been interrupted. (Tried to load post data.)");
+			Console.WriteLine("Exception Message: " + e.InnerException);
+			if(e.Status == WebExceptionStatus.ProtocolError) {
+				Console.WriteLine("Status Code : {0}", ((HttpWebResponse)e.Response).StatusCode);
+				Console.WriteLine("Status Description : {0}", ((HttpWebResponse)e.Response).StatusDescription);
+			}
 			Console.ResetColor();
 			Console.Write("\n> ");
 			Console.SetCursorPosition(2, Console.CursorTop);
@@ -542,9 +549,16 @@ public class LongbowToolkit {
 		string Blanker = "";
 		int uCursorTop;
 		int uCursorLeft;
+		int Shift = 0;
 		uCursorLeft = Console.CursorLeft;
 		uCursorTop = Console.CursorTop;
 		Console.SetCursorPosition(0, uCursorTop);
+		int rCursorPos = (Console.WindowWidth - 5) - (Data.ChatCurrent.Length-Data.vCursorPos);
+		if (rCursorPos < 2) {
+			rCursorPos = 2;
+			
+		
+		}
 		
 		//we need to assemble a "tray" of blank text to prevent flickering
 		for (int i = 0; i < Console.WindowWidth-ChatCurrent.Length-2; i++) {
@@ -558,9 +572,19 @@ public class LongbowToolkit {
 			Console.SetCursorPosition(Data.vCursorPos, uCursorTop);
 		} else {
 			
-			int chat_slice = ChatCurrent.Length-Console.WindowWidth+4; //+2 to account for the opening "> ", +2 to account for gap at end of line
-			Console.Write("> "+ChatCurrent.Substring(chat_slice)+"  ");
-			Console.SetCursorPosition(Console.WindowWidth-2, uCursorTop);
+			int chat_slice = ChatCurrent.Length-Console.WindowWidth+5; //+2 to account for the opening "> ", +3 to account for gap at end of line
+			if (Data.vCursorPos-2 < chat_slice) {
+				chat_slice = Data.vCursorPos;
+				
+				
+					Console.Write("> "+ChatCurrent.Substring(chat_slice-2,Console.WindowWidth-5)+"  !");
+				
+				
+			} else {
+				Console.Write("> "+ChatCurrent.Substring(chat_slice)+"  *");
+			}
+			
+			Console.SetCursorPosition(rCursorPos, uCursorTop);
 		}
 		
 		
