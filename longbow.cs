@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Net;
+using System.Net.Cache;
 using System.Web;
 using System.Linq;
 using System.Xml;
@@ -412,6 +413,7 @@ public class LongbowWorkerThread {
 		
 		try {
 			WebClient fetch = new WebClient();
+			fetch.CachePolicy = new RequestCachePolicy(RequestCacheLevel.NoCacheNoStore); 
 			fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
 			string NewData = fetch.UploadString(LongbowCore.api_url, parameters);
 			LongbowToolkit Toolkit = new LongbowToolkit();
