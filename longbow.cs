@@ -174,8 +174,10 @@ public class LongbowCore {
 		data = fetch.UploadString(api_url, parameters);
 		//Console.WriteLine(api_url+"?"+parameters);
 		//return;
+		
+		
 		xml.LoadXml(data);
-		//Console.WriteLine(data);
+		
 		xnList = xml.SelectNodes("/root/item");
 		
 		string curtext = string.Empty;
@@ -204,7 +206,7 @@ public class LongbowCore {
 		//render the screen manually the first time
 		Tools.DrawChat(Data.ChannelBuffer, Data.TemporaryBuffer);
 		Tools.DrawInput(ref Data);
-				
+			
 		//MAIN LOOP BEGIN
 		bool loop = true;
 		LongbowWorkerThread Worker = new LongbowWorkerThread();
@@ -272,11 +274,15 @@ public class LongbowCore {
 						Data.vCursorPos--;
 					}
 					
+					Data.vCursorVelocity = -1;
+					
 				} else {
 					if (Data.vCursorPos < Data.ChatCurrent.Length+2) {
 						Console.SetCursorPosition(uCursorLeft+2, uCursorTop);
 						Data.vCursorPos++;
 					}
+					
+					Data.vCursorVelocity = 1;
 				}
 				
 				Tools.DrawInput(ref Data);
@@ -351,6 +357,10 @@ public class LongbowInstanceData {
 	public string TemporaryBuffer_Last;
 	public int vCursorPos;
 	public int vBufferPos;
+	public int sCursorPos;
+	public int sBufferPos;
+	public int vCursorVelocity = 0;
+	public int ConnectionErrorCount = 0;
 }
 
 //Talking to the server? Yeah boyeee.
@@ -411,28 +421,41 @@ public class LongbowWorkerThread {
 	
 	public void GetChannelUpdates(ref LongbowInstanceData Data, string parameters){
 		
+		bool success = false;
+		
 		try {
-			WebClient fetch = new WebClient();
+			ExtendedWebClient fetch = new ExtendedWebClient();
+			fetch.Timeout = 4000;
 			fetch.CachePolicy = new RequestCachePolicy(RequestCacheLevel.NoCacheNoStore); 
 			fetch.Headers[HttpRequestHeader.ContentType] = "application/x-www-form-urlencoded";
 			string NewData = fetch.UploadString(LongbowCore.api_url, parameters);
 			LongbowToolkit Toolkit = new LongbowToolkit();
 			Toolkit.AddNewPosts(ref Data, NewData);
+			success = true;
+			
 			
 		} catch (WebException e) {
-			Console.ForegroundColor = ConsoleColor.White;
-			Console.BackgroundColor = ConsoleColor.Red;
-			Console.SetCursorPosition(0, Console.CursorTop);
-			Console.WriteLine("# It appears your connection to the server has been interrupted. (Tried to load post data.)");
-			Console.WriteLine("Exception Message: " + e.InnerException);
-			if(e.Status == WebExceptionStatus.ProtocolError) {
-				Console.WriteLine("Status Code : {0}", ((HttpWebResponse)e.Response).StatusCode);
-				Console.WriteLine("Status Description : {0}", ((HttpWebResponse)e.Response).StatusDescription);
-			}
-			Console.ResetColor();
-			Console.Write("\n> ");
-			Console.SetCursorPosition(2, Console.CursorTop);
+			Data.ConnectionErrorCount++;
+				if (Data.ConnectionErrorCount > 3){
+					Console.ForegroundColor = ConsoleColor.White;
+					Console.BackgroundColor = ConsoleColor.Red;
+					Console.SetCursorPosition(0, Console.CursorTop);
+					Console.WriteLine("# It appears your connection to the server has been interrupted. (Tried to load post data.)");
+					Console.WriteLine("Exception Message: " + e.Status);
+					if(e.Status == WebExceptionStatus.ProtocolError) {
+						Console.WriteLine("Status Code : {0}", ((HttpWebResponse)e.Response).StatusCode);
+						Console.WriteLine("Status Description : {0}", ((HttpWebResponse)e.Response).StatusDescription);
+					}
+					Console.ResetColor();
+					Console.Write("\n> ");
+					Console.SetCursorPosition(2, Console.CursorTop);
+				}
 		}
+		
+		if (success){
+			Data.ConnectionErrorCount = 0;
+		}
+		
 	}
 	
 	public void UpdateChannel(ref LongbowInstanceData Data, ref LongbowSessionData Session){
@@ -555,11 +578,10 @@ public class LongbowToolkit {
 		uCursorLeft = Console.CursorLeft;
 		uCursorTop = Console.CursorTop;
 		Console.SetCursorPosition(0, uCursorTop);
+		
 		int rCursorPos = (Console.WindowWidth - 5) - (Data.ChatCurrent.Length-Data.vCursorPos);
 		if (rCursorPos < 2) {
 			rCursorPos = 2;
-			
-		
 		}
 		
 		//we need to assemble a "tray" of blank text to prevent flickering
@@ -568,22 +590,27 @@ public class LongbowToolkit {
 		}
 		
 		//a little jiggering to account for editing posts which are bigger than the window
-		if (Console.WindowWidth > ChatCurrent.Length+4) {
+		
+		
+		if (Console.WindowWidth > ChatCurrent.Length+4) { //If the text is smaller than the window, fine!
 			Console.Write("> "+ChatCurrent+Blanker);
 			//Console.SetCursorPosition(ChatCurrent.Length+2, uCursorTop);
 			Console.SetCursorPosition(Data.vCursorPos, uCursorTop);
 		} else {
 			
 			int chat_slice = ChatCurrent.Length-Console.WindowWidth+5; //+2 to account for the opening "> ", +3 to account for gap at end of line
+			
+			if (Data.vCursorVelocity > 0) {
+				Shift = 1;
+				rCursorPos++;
+			}
+			
 			if (Data.vCursorPos-2 < chat_slice) {
-				chat_slice = Data.vCursorPos;
-				
-				
-					Console.Write("> "+ChatCurrent.Substring(chat_slice-2,Console.WindowWidth-5)+"  !");
-				
-				
+				chat_slice = Data.vCursorPos - 2;
+				Console.Write("> "+ChatCurrent.Substring(chat_slice-Shift,Console.WindowWidth-5)+"  !");
 			} else {
-				Console.Write("> "+ChatCurrent.Substring(chat_slice)+"  *");
+				int OffsetSize = ChatCurrent.Substring(chat_slice-Shift).Length -1;
+				Console.Write("> "+ChatCurrent.Substring(chat_slice-Shift,OffsetSize)+"  *");
 			}
 			
 			Console.SetCursorPosition(rCursorPos, uCursorTop);
@@ -599,16 +626,19 @@ public class LongbowToolkit {
 		int ExcerptSize;
 		if (Chat.Count < 1) { return; }
 		
-		if (Chat.Count > 30){
+		if (Chat.Count < 30){
 			ExcerptSize = 0;
 		} else {
 			ExcerptSize = Chat.Count - 30;
 		}
-	
+		
+		
+		
 		for (int i = ExcerptSize; i < Chat.Count; i++){
 			SafeDraw(Chat[i]);
 			//Console.WriteLine(Chat[i]);
 		}
+		
 		
 		for (int i = 0; i < TempChat.Count; i++){
 			SafeDraw(TempChat[i]);
@@ -706,5 +736,20 @@ static class Extensions
         {
                 return listToClone.Select(item => (T)item.Clone()).ToList();
         }
+}
+
+public class ExtendedWebClient : WebClient //courtesy of geekswithblogs.net
+{
+	public int Timeout { get; set; }
+	
+	protected override WebRequest GetWebRequest(Uri address)
+	{
+		WebRequest request = base.GetWebRequest(address);
+		if (request != null) { request.Timeout = Timeout; }
+		
+		return request;
+	}
+	
+	public ExtendedWebClient() { Timeout = 100000; }
 }
 
